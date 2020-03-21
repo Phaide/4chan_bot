@@ -20,7 +20,7 @@ pip install requests
 ```
 For curses, on Windows:
 ```
-pip install wcurses
+pip install windows-curses
 ```
 And I believe it is installed by default on Linux distributions (to check !). Otherwise, it should be 
 ```
