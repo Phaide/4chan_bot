@@ -10,7 +10,7 @@ Well you're in the right place !<br />
 This script, written in Python 3, parses through your favorite boards to find specific keywords, and filter only the relevant threads !<br />
 
 ## Future work
-A more precise system could be implemented to filter by relevancy (the more the word is used in the thread, the more relevant it is).<br />
+Now that the counting system is in place, it should filter so that the first in the list is the most relevant.<br />
 I also intended to add an image recognition system, probably based on Google's API (if there is any, I didn't look into it atm).<br />
 
 
