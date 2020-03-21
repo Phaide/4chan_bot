@@ -49,6 +49,19 @@ class b_4chan:
         for board in self.boards:
             self.board_parser(board)
 
+    def r_is_in_list(self, uList, term):
+        """
+        Searches recursively for a term in the passed list.
+        Returns True if it found it, False otherwise.
+        """
+        for value in uList:
+            if (type(value) in (list, tuple, dict)):
+                if (term in value) or self.r_is_in_list(value, term):
+                    return True
+            else:
+                if value == term:
+                    return True
+
     def board_parser(self, board):
         """
         Gets the HTML of the board's pages to find threads.
@@ -64,7 +77,7 @@ class b_4chan:
 
     def thread_parser(self, board, thread):
         """
-        Parses each thread's HTML code to find the terms
+        Parses each thread's HTML code to find the terms.
         """
         threadAdd = "{}/{}/thread/{}".format(self.address, board, thread)
         r = requests.get(threadAdd)
@@ -72,7 +85,8 @@ class b_4chan:
             for term in self.searchingFor:
                 count = r.text.lower().count(term.lower())
                 if count > 0:
-                    self.activeThreads[term].append([count, threadAdd])
+                    if not self.r_is_in_list(self.activeThreads[term], threadAdd):
+                        self.activeThreads[term].append([count, threadAdd])
 
 class Display:
 
