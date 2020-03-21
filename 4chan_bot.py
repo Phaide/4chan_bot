@@ -19,6 +19,10 @@ import curses # pip install windows-curses (on Windows of course). Documentation
 # Import build-in modules
 import re, webbrowser
 
+# We use multi-threading to improve performance
+from multiprocessing.dummy import Pool as ThreadPool
+from multiprocessing import cpu_count
+
 # List of boards to parse.
 boards = ["b"]
 # List of terms to search for. Keep in mind that the script parses HTML, so adapt your terms accordingly.
@@ -46,8 +50,12 @@ class b_4chan:
         """
         Main function
         """
+        self.init_activeThreads()
         for board in self.boards:
-            self.board_parser(board)
+            self.currentBoard = board
+            self.board_parser_main()
+        for term, activeThread in self.activeThreads.items():
+            activeThread.sort(reverse=True)
 
     def r_is_in_list(self, uList, term):
         """
@@ -62,18 +70,25 @@ class b_4chan:
                 if value == term:
                     return True
 
-    def board_parser(self, board):
+    def board_parser_main(self):
+        """
+        Creates a multithreading pool to parse each boards pages simultaneously.
+        """
+        boardAdd = "{}/{}".format(self.address, self.currentBoard)
+        pages = [boardAdd] + list(["{}/{}".format(boardAdd, i) for i in range(2, 11)])
+        # Creates a multithreading pool
+        pool = ThreadPool(cpu_count())
+        pool.map(self.board_parser, pages)
+
+    def board_parser(self, page):
         """
         Gets the HTML of the board's pages to find threads.
         """
-        boardAdd = "{}/{}".format(self.address, board)
-        pages = [""] + list(range(2, 10))
-        for page in pages:
-            r = requests.get("{}/{}".format(boardAdd, page))
-            if r.status_code == 200:
-                threads = re.findall(r"id=\"t([0-9]*)\"", r.text)
-                for thread in threads:
-                    self.thread_parser(board, thread)
+        r = requests.get(page)
+        if r.status_code == 200:
+            threads = re.findall(r"id=\"t([0-9]*)\"", r.text)
+            for thread in threads:
+                self.thread_parser(self.currentBoard, thread)
 
     def thread_parser(self, board, thread):
         """
@@ -126,15 +141,7 @@ class Display:
         """
         Main loop, used to navigate through the menus and execute actions depending on user input.
         """
-        for index, entry in enumerate(self.menu):
-            try:
-                indexName = next(v for i, v in enumerate(bot.activeThreads) if i == index)
-                try:
-                    self.menu[index] = [len(bot.activeThreads[indexName]), self.menu[index]]
-                except NameError:
-                    continue
-            except:
-                continue
+        self.add_count_to_menu()
         currentMenuRowIndex = 0
         while True:
             try:
@@ -150,8 +157,8 @@ class Display:
                 currentMenuRowIndex += 1
             elif (key == ord("u")):
                 self.loading_screen()
-                bot.init_activeThreads()
                 bot.main_parser()
+                self.add_count_to_menu()
             elif (key == curses.KEY_RIGHT) and (currentMenuRowIndex == (len(self.menu) - 1)):
                 break
             elif (key == curses.KEY_RIGHT) and (len(bot.activeThreads[currentMenuRowName]) > 0):
@@ -168,6 +175,17 @@ class Display:
                         webbrowser.open(bot.activeThreads[currentMenuRowName][currentThreadRowIndex][1])
                     elif (key == curses.KEY_LEFT):
                         break
+
+    def add_count_to_menu(self):
+        for index, entry in enumerate(self.menu):
+            try:
+                indexName = next(v for i, v in enumerate(bot.activeThreads) if i == index)
+                try:
+                    self.menu[index] = [len(bot.activeThreads[indexName]), self.menu[index][1]] if (type(self.menu[index]) == type([])) else [len(bot.activeThreads[indexName]), self.menu[index]]
+                except NameError:
+                    continue
+            except:
+                continue
 
     def print_list(self, list, currentIndex):
         """
