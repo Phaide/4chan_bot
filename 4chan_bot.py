@@ -31,7 +31,7 @@ terms = ["Facts", "Logic", "Other"]
 class b_4chan:
 
     # 4chan boards subdomain ; boards addresses are built from this address.
-    address = "http://boards.4chan.org"
+    address = "https://boards.4chan.org"
 
     def __init__(self, boards, terms):
         self.boards = boards
