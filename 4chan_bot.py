@@ -13,7 +13,7 @@ Build: 27/01/2020
 """
 
 # Import non built-in modules. Requires external installation.
-import requests # pip install requets
+import requests # pip install requests
 import curses # pip install windows-curses (on Windows of course). Documentation: https://docs.python.org/3/howto/curses.html
 
 # Import build-in modules
