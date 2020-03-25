@@ -23,9 +23,10 @@ import re, webbrowser
 from multiprocessing.dummy import Pool as ThreadPool
 from multiprocessing import cpu_count
 
-# List of boards to parse.
+# List of boards to parse. Exemple : ["b", "pol", "r9k"]
 boards = ["b"]
-# List of terms to search for. Keep in mind that the script parses HTML, so adapt your terms accordingly.
+# List of terms to search for. Note : the script parses HTML, so adapt your terms accordingly.
+# Also, terms are case-insensitive.
 terms = ["Facts", "Logic", "Other"]
 
 class b_4chan:
