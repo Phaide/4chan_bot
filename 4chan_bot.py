@@ -8,7 +8,7 @@ It is used to parse the website for specific keywords.
 Author: Phaide | https://phaide.net/
 Licence: GNU GPL v3
 Repository: https://github.com/Phaide/4chan_bot/
-Build: 27/01/2020
+Build: 25/03/2020
 
 """
 
@@ -23,7 +23,7 @@ import re, webbrowser
 from multiprocessing.dummy import Pool as ThreadPool
 from multiprocessing import cpu_count
 
-# List of boards to parse. Exemple : ["b", "pol", "r9k"]
+# List of boards to parse. Example : ["b", "pol", "r9k"]
 boards = ["b"]
 # List of terms to search for. Note : the script parses HTML, so adapt your terms accordingly.
 # Also, terms are case-insensitive.
