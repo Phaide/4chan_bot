@@ -1,15 +1,12 @@
 # coding: utf-8
 
 """
-
 This script is a 4chan bot
 It is used to parse the website for specific keywords.
-
 Author: Phaide | https://phaide.net/
 Licence: GNU GPL v3
 Repository: https://github.com/Phaide/4chan_bot/
-Build: 25/03/2020
-
+Build: 27/01/2020
 """
 
 # Import non built-in modules. Requires external installation.
@@ -23,8 +20,8 @@ import re, webbrowser
 from multiprocessing.dummy import Pool as ThreadPool
 from multiprocessing import cpu_count
 
-# List of boards to parse. Example : ["b", "pol", "r9k"]
-boards = ["b"]
+# List of boards to parse. Exemple : ["b", "pol", "r9k"]
+boards = ["b", "r9k"]
 # List of terms to search for. Note : the script parses HTML, so adapt your terms accordingly.
 # Also, terms are case-insensitive.
 terms = ["Facts", "Logic", "Other"]
@@ -34,7 +31,8 @@ class b_4chan:
     # 4chan boards subdomain ; boards addresses are built from this address.
     address = "https://boards.4chan.org"
 
-    def __init__(self, boards, terms):
+    def __init__(self, display, boards, terms):
+        self.display = display
         self.boards = boards
         self.searchingFor = terms
         self.init_activeThreads()
@@ -56,7 +54,8 @@ class b_4chan:
             self.currentBoard = board
             self.board_parser_main()
         for term, activeThread in self.activeThreads.items():
-            activeThread.sort(reverse=True)
+            activeThread.sort(reverse = True)
+        self.display.main(self)
 
     def r_is_in_list(self, uList, term):
         """
@@ -85,7 +84,10 @@ class b_4chan:
         """
         Gets the HTML of the board's pages to find threads.
         """
-        r = requests.get(page)
+        try:
+            r = requests.get(page)
+        except requests.exceptions.ConnectionError:
+            self.display.conn_error()
         if r.status_code == 200:
             threads = re.findall(r"id=\"t([0-9]*)\"", r.text)
             for thread in threads:
@@ -96,13 +98,17 @@ class b_4chan:
         Parses each thread's HTML code to find the terms.
         """
         threadAdd = "{}/{}/thread/{}".format(self.address, board, thread)
-        r = requests.get(threadAdd)
+        try:
+            r = requests.get(threadAdd)
+        except requests.exceptions.ConnectionError:
+            self.display.conn_error()
         if r.status_code == 200:
             for term in self.searchingFor:
                 count = r.text.lower().count(term.lower())
                 if count > 0:
                     if not self.r_is_in_list(self.activeThreads[term], threadAdd):
                         self.activeThreads[term].append([count, threadAdd])
+
 
 class Display:
 
@@ -137,6 +143,20 @@ class Display:
         self.stdscr.addstr(y, x, row)
         # Refresh display
         self.stdscr.refresh()
+
+    def conn_error(self):
+        row = "Network exception. Please verify your Internet connection."
+        self.stdscr.clear()
+        # Get screen dimensions (height and width)
+        h, w = self.stdscr.getmaxyx()
+        # Find the center
+        x = (w // 2) - (len(row) // 2)
+        y = (h // 2)
+        # Print the text
+        self.stdscr.addstr(y, x, row)
+        # Refresh display
+        self.stdscr.refresh()
+        input() # Stop processing
 
     def main(self, bot):
         """
@@ -209,12 +229,12 @@ class Display:
         self.stdscr.refresh()
 
 if __name__ == "__main__":
+    display = Display(terms)
+    display.loading_screen()
     bot = b_4chan(
+        display,
         boards,
         terms
     )
-    display = Display(bot.searchingFor)
-    display.loading_screen()
     bot.main_parser()
-    display.main(bot)
     del bot, display
