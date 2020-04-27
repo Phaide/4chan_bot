@@ -6,7 +6,7 @@ It is used to parse the website for specific keywords.
 Author: Phaide | https://phaide.net/
 Licence: GNU GPL v3
 Repository: https://github.com/Phaide/4chan_bot/
-Build: 27/01/2020
+Build: 27/04/2020
 """
 
 # Import non built-in modules. Requires external installation.
