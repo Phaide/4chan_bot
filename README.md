@@ -49,10 +49,5 @@ If you want to contribute, please fork this repo and/or send pull requests. Than
 ## Supporting
 If you want to support me, you can send some kind messages via my website (https://phaide.net/contact)<br />
 
-And perhaps, consider making a donation<br />
-
-    BTC: 178oEM3sUYtHVYVt2jbHv4HNjy2nfu1iiT
-    ETH: 0x4f3290b22012f0d01900a87e4475c01a7f95ee93
-
 With love,<br />
 Phaide.
