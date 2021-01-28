@@ -1,84 +1,87 @@
 # coding: utf-8
 
 """
-This script is a 4chan bot
+This script is a 4chan bot.
 It is used to parse the website for specific keywords.
-Author: Phaide | https://phaide.net/
 Licence: GNU GPL v3
 Repository: https://github.com/Phaide/4chan_bot/
-Build: 27/04/2020
+Build: 28/01/2021
 """
 
-# Import non built-in modules. Requires external installation.
-import requests # pip install requests
-import curses # pip install windows-curses (on Windows of course). Documentation: https://docs.python.org/3/howto/curses.html
-
 # Import build-in modules
-import re, webbrowser
-
+import re
+import webbrowser
 # We use multi-threading to improve performance
-from multiprocessing.dummy import Pool as ThreadPool
-from multiprocessing import cpu_count
+import multiprocessing as mp
 
-# List of boards to parse. Exemple : ["b", "pol", "r9k"]
+from typing import Tuple
+
+# Import third-party
+import requests
+import curses
+
+# List of boards to parse. Example : ["b", "pol", "r9k"]
 boards = ["b", "r9k"]
 # List of terms to search for. Note : the script parses HTML, so adapt your terms accordingly.
 # Also, terms are case-insensitive.
 terms = ["Facts", "Logic", "Other"]
 
-class b_4chan:
+
+class FourChanBot:
 
     # 4chan boards subdomain ; boards addresses are built from this address.
-    address = "https://boards.4chan.org"
+    url = "https://boards.4chan.org"
 
-    def __init__(self, display, boards, terms):
+    def __init__(self, display, boards: list, terms: list):
         self.display = display
         self.boards = boards
-        self.searchingFor = terms
-        self.init_activeThreads()
+        self.searching_for = terms
+        self.init_active_threads()
+        self.active_threads = None
+        self.current_board = None
 
-    def init_activeThreads(self):
+    def init_active_threads(self):
         """
-        Empties the activeThreads dictionnary then recreates it.
+        Empties the activeThreads dictionary then recreates it.
         """
-        self.activeThreads = {}
-        for term in self.searchingFor:
-            self.activeThreads[term] = []
+        self.active_threads = {}
+        for term in self.searching_for:
+            self.active_threads[term] = []
 
     def main_parser(self):
-        """
-        Main function
-        """
-        self.init_activeThreads()
+        self.init_active_threads()
         for board in self.boards:
-            self.currentBoard = board
+            self.current_board = board
             self.board_parser_main()
-        for term, activeThread in self.activeThreads.items():
-            activeThread.sort(reverse = True)
+        for term, active_thread in self.active_threads.items():
+            active_thread.sort(reverse=True)
         self.display.main(self)
 
-    def r_is_in_list(self, uList, term):
+    def r_is_in_list(self, u_list: list, term: str) -> bool:
         """
         Searches recursively for a term in the passed list.
         Returns True if it found it, False otherwise.
         """
-        for value in uList:
-            if (type(value) in (list, tuple, dict)):
-                if (term in value) or self.r_is_in_list(value, term):
+        for value in u_list:
+            if type(value) in (list, tuple, dict):
+                if term in value or self.r_is_in_list(value, term):
                     return True
             else:
                 if value == term:
                     return True
+        return False
 
     def board_parser_main(self):
         """
         Creates a multithreading pool to parse each boards pages simultaneously.
         """
-        boardAdd = "{}/{}".format(self.address, self.currentBoard)
-        pages = [boardAdd] + list(["{}/{}".format(boardAdd, i) for i in range(2, 11)])
-        # Creates a multithreading pool
-        pool = ThreadPool(cpu_count())
-        pool.map(self.board_parser, pages)
+        board_add = f"{self.url}/{self.current_board}"
+        pages = [f"{board_add}/{i}" for i in ("", 2, 3, 4, 5, 6, 7, 8, 9, 10)]
+        # Creates a multithreading pool (doesn't work for some reason)
+        for page in pages:
+            self.board_parser(page)
+        # with mp.Pool(mp.cpu_count()) as pool:
+        #    pool.map(self.board_parser, pages)
 
     def board_parser(self, page):
         """
@@ -87,35 +90,37 @@ class b_4chan:
         try:
             r = requests.get(page)
         except requests.exceptions.ConnectionError:
-            self.display.conn_error()
+            self.display.display_network_error()
+            return
         if r.status_code == 200:
             threads = re.findall(r"id=\"t([0-9]*)\"", r.text)
             for thread in threads:
-                self.thread_parser(self.currentBoard, thread)
+                self.thread_parser(self.current_board, thread)
 
     def thread_parser(self, board, thread):
         """
         Parses each thread's HTML code to find the terms.
         """
-        threadAdd = "{}/{}/thread/{}".format(self.address, board, thread)
+        thread_add = f"{self.url}/{board}/thread/{thread}"
         try:
-            r = requests.get(threadAdd)
+            r = requests.get(thread_add)
         except requests.exceptions.ConnectionError:
-            self.display.conn_error()
+            self.display.display_network_error()
+            return
         if r.status_code == 200:
-            for term in self.searchingFor:
+            for term in self.searching_for:
                 count = r.text.lower().count(term.lower())
                 if count > 0:
-                    if not self.r_is_in_list(self.activeThreads[term], threadAdd):
-                        self.activeThreads[term].append([count, threadAdd])
+                    if not self.r_is_in_list(self.active_threads[term], thread_add):
+                        self.active_threads[term].append([count, thread_add])
 
 
 class Display:
 
     def __init__(self, menu):
         self.menu = menu + ["Exit"]
-        self.stdscr = curses.initscr()
-        self.stdscr.keypad(True)
+        self.screen = curses.initscr()
+        self.screen.keypad(True)
         curses.noecho()
         curses.cbreak()
         curses.curs_set(False)
@@ -123,118 +128,122 @@ class Display:
         curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_WHITE)
 
     def __del__(self):
-        self.stdscr.keypad(False)
+        self.screen.keypad(False)
         curses.echo()
         curses.nocbreak()
         curses.endwin()
+
+    def display_single_line(self, row: str):
+        self.screen.clear()
+        x, y = self.get_center_coordinates(row)
+        self.screen.addstr(y, x, row)
+        self.screen.refresh()
 
     def loading_screen(self):
         """
         Prints a simple loading screen.
         """
-        row = "Loading..."
-        self.stdscr.clear()
-        # Get screen dimensions (height and width)
-        h, w = self.stdscr.getmaxyx()
-        # Find the center
-        x = (w // 2) - (len(row) // 2)
-        y = (h // 2)
-        # Print the text
-        self.stdscr.addstr(y, x, row)
-        # Refresh display
-        self.stdscr.refresh()
+        self.display_single_line("Loading...")
 
-    def conn_error(self):
-        row = "Network exception. Please verify your Internet connection."
-        self.stdscr.clear()
-        # Get screen dimensions (height and width)
-        h, w = self.stdscr.getmaxyx()
-        # Find the center
-        x = (w // 2) - (len(row) // 2)
-        y = (h // 2)
-        # Print the text
-        self.stdscr.addstr(y, x, row)
-        # Refresh display
-        self.stdscr.refresh()
-        input() # Stop processing
+    def display_network_error(self):
+        self.display_single_line("Network exception. Please verify your Internet connection.")
+        input()  # Pause (actually stops processing)
 
     def main(self, bot):
         """
         Main loop, used to navigate through the menus and execute actions depending on user input.
         """
-        self.add_count_to_menu()
-        currentMenuRowIndex = 0
+        self.add_count_to_menu(bot)
+        current_menu_row_index = 0
         while True:
             try:
-                # Get the name of the menu entry in the "bot.activeThreads" var, used to access data in this dictionnary
-                currentMenuRowName = next(v for i, v in enumerate(bot.activeThreads) if i == currentMenuRowIndex)
-            except: # Catches StopIteration when selecting menu entry "Exit"
-                pass
-            self.print_list(self.menu, currentMenuRowIndex)
-            key = self.stdscr.getch()
-            if (key == curses.KEY_UP) and (currentMenuRowIndex > 0):
-                currentMenuRowIndex -= 1
-            elif (key == curses.KEY_DOWN) and (currentMenuRowIndex < (len(self.menu) - 1)):
-                currentMenuRowIndex += 1
-            elif (key == ord("u")):
+                # Get the name of the menu entry in the "bot.activeThreads" var, used to access data in this dictionary
+                current_menu_row_name = next(v for i, v in enumerate(bot.active_threads) if i == current_menu_row_index)
+            except StopIteration:  # Catches StopIteration when selecting menu entry "Exit"
+                continue
+            self.print_list(self.menu, current_menu_row_index)
+            key = self.screen.getch()
+            if key == curses.KEY_UP and current_menu_row_index > 0:
+                current_menu_row_index -= 1
+            elif (key == curses.KEY_DOWN) and (current_menu_row_index < (len(self.menu) - 1)):
+                current_menu_row_index += 1
+            elif key == ord("u"):
                 self.loading_screen()
                 bot.main_parser()
-                self.add_count_to_menu()
-            elif (key == curses.KEY_RIGHT) and (currentMenuRowIndex == (len(self.menu) - 1)):
+                self.add_count_to_menu(bot)
+            elif key == curses.KEY_RIGHT and current_menu_row_index == len(self.menu) - 1:
                 break
-            elif (key == curses.KEY_RIGHT) and (len(bot.activeThreads[currentMenuRowName]) > 0):
-                currentThreadRowIndex = 0
+            elif key == curses.KEY_RIGHT and len(bot.active_threads[current_menu_row_name]) > 0:
+                current_thread_row_index = 0
                 while True:
-                    self.print_list(bot.activeThreads[currentMenuRowName], currentThreadRowIndex)
-                    key = self.stdscr.getch()
-                    if (key == curses.KEY_UP) and (currentThreadRowIndex > 0):
-                        currentThreadRowIndex -= 1
-                    elif (key == curses.KEY_DOWN) and (currentThreadRowIndex < (len(bot.activeThreads[currentMenuRowName]) - 1)):
-                        currentThreadRowIndex += 1
-                    elif (key == curses.KEY_RIGHT):
-                        # Uses the webbrowser module to open a web page.
-                        webbrowser.open(bot.activeThreads[currentMenuRowName][currentThreadRowIndex][1])
-                    elif (key == curses.KEY_LEFT):
+                    self.print_list(bot.active_threads[current_menu_row_name], current_thread_row_index)
+                    key = self.screen.getch()
+                    if (key == curses.KEY_UP) and (current_thread_row_index > 0):
+                        current_thread_row_index -= 1
+                    elif key == curses.KEY_DOWN and \
+                            current_thread_row_index < len(bot.active_threads[current_menu_row_name]) - 1:
+                        current_thread_row_index += 1
+                    elif key == curses.KEY_RIGHT:
+                        # Open the thread in the default web browser.
+                        webbrowser.open(bot.active_threads[current_menu_row_name][current_thread_row_index][1])
+                    elif key == curses.KEY_LEFT:
                         break
 
-    def add_count_to_menu(self):
+    def add_count_to_menu(self, bot):
         for index, entry in enumerate(self.menu):
             try:
-                indexName = next(v for i, v in enumerate(bot.activeThreads) if i == index)
-                try:
-                    self.menu[index] = [len(bot.activeThreads[indexName]), self.menu[index][1]] if (type(self.menu[index]) == type([])) else [len(bot.activeThreads[indexName]), self.menu[index]]
-                except NameError:
-                    continue
-            except:
+                index_name = next(v for i, v in enumerate(bot.active_threads) if i == index)
+            except StopIteration:
+                continue
+            try:
+                if isinstance(self.menu[index], list):
+                    self.menu[index] = [len(bot.active_threads[index_name]), self.menu[index][1]]
+                else:
+                    self.menu[index] = [len(bot.active_threads[index_name]), self.menu[index]]
+            except NameError:
                 continue
 
-    def print_list(self, list, currentIndex):
+    def print_list(self, p_list, current_index):
         """
         Prints a list's items in the screen center.
         """
-        self.stdscr.clear()
-        h, w = self.stdscr.getmaxyx()
-        for index, couple in enumerate(list):
-            row = "{} | {}".format(couple[0], couple[1]) if type(couple) == type([]) and (len(couple) == 2) else couple
-            # The two next lines centers the menu entries, vertically and horizontally
-            x = (w // 2) - (len(row) // 2)
-            y = (h // 2) - (len(list) // 2) + index
-            if x in range(0, w) and y in range(0, h):
-                if index == currentIndex:
-                    self.stdscr.addstr(y, x, row, curses.color_pair(1))
-                else:
-                    self.stdscr.addstr(y, x, row)
+        self.screen.clear()
+        height, width = self.screen.getmaxyx()
+        for index, couple in enumerate(p_list):
+            if isinstance(couple, list) and len(couple) == 2:
+                row = f"{couple[0]} | {couple[1]}"
             else:
-                self.stdscr.addstr(0, 0, "Too many results to display !\nIncrease the window size and/or dezoom")
-        self.stdscr.refresh()
+                row = couple
+            # The two next lines centers the menu entries, vertically and horizontally
+            x = (width // 2) - (len(row) // 2)
+            y = (height // 2) - (len(p_list) // 2) + index
+            if x in range(0, width) and y in range(0, height):
+                if index == current_index:
+                    self.screen.addstr(y, x, row, curses.color_pair(1))
+                else:
+                    self.screen.addstr(y, x, row)
+            else:
+                self.screen.addstr(0, 0, "Too many results to display !\nIncrease the window size and/or dezoom")
+        self.screen.refresh()
 
-if __name__ == "__main__":
+    def get_center_coordinates(self, row: str) -> Tuple[int, int]:
+        # Get screen dimensions (height and width)
+        height, width = self.screen.getmaxyx()
+        # Find the center
+        x = (width // 2) - (len(row) // 2)
+        y = (height // 2)
+        return x, y
+
+
+def main():
     display = Display(terms)
     display.loading_screen()
-    bot = b_4chan(
-        display,
-        boards,
-        terms
-    )
+
+    bot = FourChanBot(display, boards, terms)
     bot.main_parser()
+
     del bot, display
+
+
+if __name__ == "__main__":
+    main()
